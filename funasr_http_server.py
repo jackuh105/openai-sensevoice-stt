@@ -26,7 +26,7 @@ parser.add_argument("--port", type=int, default=8000, required=False, help="serv
 parser.add_argument(
     "--model_dir",
     type=str,
-    default="models/iic/SenseVoiceSmall",
+    default="iic/SenseVoiceSmall",
     help="SenseVoice model directory path",
 )
 parser.add_argument(
@@ -86,7 +86,7 @@ os.makedirs(args.temp_dir, exist_ok=True)
 
 logger.info("model loading")
 # load SenseVoice model
-model_dir = Path.cwd() / args.model_dir
+model_dir = args.model_dir
 model = AutoModel(
     model=model_dir,
     trust_remote_code=True,
