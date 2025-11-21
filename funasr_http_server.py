@@ -2,6 +2,7 @@ import argparse
 import logging
 import os
 import uuid
+from pathlib import Path
 
 import aiofiles
 import ffmpeg
@@ -10,6 +11,7 @@ from fastapi import FastAPI, File, UploadFile
 from modelscope.utils.logger import get_logger
 
 from funasr import AutoModel
+from funasr.utils.postprocess_utils import rich_transcription_postprocess
 
 logger = get_logger(log_level=logging.INFO)
 logger.setLevel(logging.INFO)
@@ -20,34 +22,54 @@ parser.add_argument(
 )
 parser.add_argument("--port", type=int, default=8000, required=False, help="server port")
 parser.add_argument(
-    "--asr_model",
+    "--model_dir",
     type=str,
-    default="paraformer-zh",
-    help="asr model from https://github.com/alibaba-damo-academy/FunASR?tab=readme-ov-file#model-zoo",
+    default="models/iic/SenseVoiceSmall",
+    help="SenseVoice model directory path",
 )
-parser.add_argument("--asr_model_revision", type=str, default="v2.0.4", help="")
+parser.add_argument(
+    "--remote_code",
+    type=str,
+    default="./model.py",
+    help="Path to remote code file for SenseVoice model",
+)
 parser.add_argument(
     "--vad_model",
     type=str,
     default="fsmn-vad",
-    help="vad model from https://github.com/alibaba-damo-academy/FunASR?tab=readme-ov-file#model-zoo",
+    help="VAD model name",
 )
-parser.add_argument("--vad_model_revision", type=str, default="v2.0.4", help="")
 parser.add_argument(
-    "--punc_model",
-    type=str,
-    default="ct-punc-c",
-    help="model from https://github.com/alibaba-damo-academy/FunASR?tab=readme-ov-file#model-zoo",
+    "--vad_kwargs",
+    type=int,
+    default=30000,
+    help="max_single_segment_time for VAD in milliseconds",
 )
-parser.add_argument("--punc_model_revision", type=str, default="v2.0.4", help="")
-parser.add_argument("--ngpu", type=int, default=0, help="0 for cpu, 1 for gpu")
-parser.add_argument("--device", type=str, default="cpu", help="cuda, cpu")
+parser.add_argument("--device", type=str, default="cpu", help="cuda or cpu")
 parser.add_argument("--ncpu", type=int, default=4, help="cpu cores")
 parser.add_argument(
-    "--hotword_path",
+    "--language",
     type=str,
-    default="hotwords.txt",
-    help="hot word txt path, only the hot word model works",
+    default="auto",
+    help="Language for ASR (auto, zh, en, yue, ja, ko)",
+)
+parser.add_argument(
+    "--use_itn",
+    type=bool,
+    default=True,
+    help="Use inverse text normalization",
+)
+parser.add_argument(
+    "--merge_vad",
+    type=bool,
+    default=True,
+    help="Merge VAD segments",
+)
+parser.add_argument(
+    "--merge_length_s",
+    type=int,
+    default=15,
+    help="Maximum length in seconds for merging VAD segments",
 )
 parser.add_argument("--certfile", type=str, default=None, required=False, help="certfile for ssl")
 parser.add_argument("--keyfile", type=str, default=None, required=False, help="keyfile for ssl")
@@ -61,17 +83,16 @@ logger.info("------------------------------------------------")
 os.makedirs(args.temp_dir, exist_ok=True)
 
 logger.info("model loading")
-# load funasr model
+# load SenseVoice model
+model_dir = Path.cwd() / args.model_dir
 model = AutoModel(
-    model=args.asr_model,
-    model_revision=args.asr_model_revision,
+    model=model_dir,
+    trust_remote_code=True,
+    remote_code=args.remote_code,
     vad_model=args.vad_model,
-    vad_model_revision=args.vad_model_revision,
-    punc_model=args.punc_model,
-    punc_model_revision=args.punc_model_revision,
-    ngpu=args.ngpu,
-    ncpu=args.ncpu,
+    vad_kwargs={"max_single_segment_time": args.vad_kwargs},
     device=args.device,
+    ncpu=args.ncpu,
     disable_pbar=True,
     disable_log=True,
 )
@@ -79,14 +100,12 @@ logger.info("loaded models!")
 
 app = FastAPI(title="FunASR")
 
-param_dict = {"batch_size_s": 300}
-if args.hotword_path is not None and os.path.exists(args.hotword_path):
-    with open(args.hotword_path, "r", encoding="utf-8") as f:
-        lines = f.readlines()
-        lines = [line.strip() for line in lines]
-    hotword = " ".join(lines)
-    logger.info(f"热词：{hotword}")
-    param_dict["hotword"] = hotword
+param_dict = {
+    "language": args.language,
+    "use_itn": args.use_itn,
+    "merge_vad": args.merge_vad,
+    "merge_length_s": args.merge_length_s,
+}
 
 
 @app.post("/recognition")
@@ -106,26 +125,22 @@ async def api_recognition(audio: UploadFile = File(..., description="audio file"
         logger.error(f"读取音频文件发生错误，错误信息：{e}")
         return {"msg": "读取音频文件发生错误", "code": 1}
     rec_results = model.generate(input=audio_bytes, is_final=True, **param_dict)
-    # 结果为空
-    if len(rec_results[0]["text"] ) == 0:
-        return {"text": "", "sentences": [], "code": 0}
-    elif len(rec_results[0]["text"] ) > 0:
-        # 解析识别结果
-        rec_result = rec_results[0]
-        text = rec_result["text"]
-        sentences = []
-        if "sentence_info" in rec_result:
-            for sentence in rec_result["sentence_info"]:
-                # 每句话的时间戳
-                sentences.append(
-                    {"text": sentence["text"], "start": sentence["start"], "end": sentence["end"]}
-                )
-        ret = {"text": text, "sentences": sentences, "code": 0}
-        logger.info(f"识别结果：{ret}")
-        return ret
-    else:
-        logger.info(f"识别结果：{rec_results}")
-        return {"msg": "未知错误", "code": -1}
+    
+    # 檢查結果
+    if not rec_results or len(rec_results) == 0:
+        return {"text": "", "code": 0}
+    
+    rec_result = rec_results[0]
+    if "text" not in rec_result or len(rec_result["text"]) == 0:
+        return {"text": "", "code": 0}
+    
+    # 使用 rich_transcription_postprocess 處理結果
+    text = rich_transcription_postprocess(rec_result["text"])
+    
+    # 簡化的回應格式
+    ret = {"text": text, "code": 0}
+    logger.info(f"識別結果：{ret}")
+    return ret
 
 
 if __name__ == "__main__":
