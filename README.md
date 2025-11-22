@@ -40,14 +40,14 @@ torchaudio = { index = "pytorch" }
 ### Basic Startup
 
 ```bash
-uv run funasr_http_server.py --port 8000 --device cpu
+uv run funasr_http_server.py --port 8200 --device cpu
 ```
 
 ### Custom Configuration
 
 ```bash
 uv run funasr_http_server.py \
-  --port 8000 \
+  --port 8200 \
   --device cpu \
   --language yue \
   --model_dir ./models/iic/SenseVoiceSmall \
@@ -75,7 +75,7 @@ mkdir -p ./models
 # Run container with model volume mount
 docker run -d \
   --name sensevoice-stt \
-  -p 8000:8000 \
+  -p 8200:8200 \
   -v $PWD/models:/root/.cache/modelscope/hub \
   sensevoice-stt:latest
 ```
@@ -101,7 +101,7 @@ If you already have the model downloaded locally:
 ```bash
 docker run -d \
   --name sensevoice-stt \
-  -p 8000:8000 \
+  -p 8200:8200 \
   -v /path/to/your/models:/root/.cache/modelscope/hub \
   sensevoice-stt:latest
 ```
@@ -113,7 +113,7 @@ docker run -d \
 ```bash
 docker run -d \
   --name sensevoice-stt \
-  -p 8000:8000 \
+  -p 8200:8200 \
   -v $PWD/models:/root/.cache/modelscope/hub \
   sensevoice-stt:latest \
   uv run funasr_http_server.py --language zh --device cpu
@@ -151,7 +151,7 @@ The `docker-compose.yml` configuration:
 - Automatically builds the image
 - Mounts `./models` to ModelScope's cache directory
 - Models download to `./models/iic/SenseVoiceSmall/`
-- Exposes port 8000
+- Exposes port 8200
 - Restarts automatically unless stopped
 
 ### Available Parameters
@@ -159,7 +159,7 @@ The `docker-compose.yml` configuration:
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `--host` | str | `0.0.0.0` | Server listening address |
-| `--port` | int | `8000` | Server port |
+| `--port` | int | `8200` | Server port |
 | `--model_dir` | str | `iic/SenseVoiceSmall` | SenseVoice model directory |
 | `--remote_code` | str | `./model.py` | Remote code path |
 | `--vad_model` | str | `fsmn-vad` | VAD model name |
@@ -179,7 +179,7 @@ The `docker-compose.yml` configuration:
 
 ```bash
 curl --request POST \
-  --url http://localhost:8000/v1/audio/transcriptions \
+  --url http://localhost:8200/v1/audio/transcriptions \
   --header 'Content-Type: multipart/form-data' \
   --form file=@audio/example.wav \
   --form model=sensevoice
@@ -194,7 +194,7 @@ curl --request POST \
 
 ```bash
 curl --request POST \
-  --url http://localhost:8000/v1/audio/transcriptions \
+  --url http://localhost:8200/v1/audio/transcriptions \
   --form file=@audio/example.wav \
   --form model=sensevoice \
   --form response_format=text
@@ -209,7 +209,7 @@ Welcome everyone to experience the speech recognition model launched by DAMO Aca
 
 ```bash
 curl --request POST \
-  --url http://localhost:8000/v1/audio/transcriptions \
+  --url http://localhost:8200/v1/audio/transcriptions \
   --form file=@audio/example.wav \
   --form model=sensevoice \
   --form response_format=verbose_json \
@@ -230,7 +230,7 @@ curl --request POST \
 
 ```bash
 curl --request POST \
-  --url http://localhost:8000/v1/audio/transcriptions \
+  --url http://localhost:8200/v1/audio/transcriptions \
   --form file=@audio/example.wav \
   --form model=sensevoice \
   --form response_format=srt
@@ -247,7 +247,7 @@ Welcome everyone to experience the speech recognition model launched by DAMO Aca
 
 ```bash
 curl --request POST \
-  --url http://localhost:8000/v1/audio/transcriptions \
+  --url http://localhost:8200/v1/audio/transcriptions \
   --form file=@audio/example.wav \
   --form model=sensevoice \
   --form response_format=vtt
@@ -266,7 +266,7 @@ Welcome everyone to experience the speech recognition model launched by DAMO Aca
 
 ```bash
 curl --request POST \
-  --url http://localhost:8000/recognition \
+  --url http://localhost:8200/recognition \
   --header 'Content-Type: multipart/form-data' \
   --form audio=@audio/example.wav
 ```
@@ -284,7 +284,7 @@ curl --request POST \
 ```python
 import requests
 
-url = "http://localhost:8000/v1/audio/transcriptions"
+url = "http://localhost:8200/v1/audio/transcriptions"
 
 # JSON format
 with open("audio/example.wav", "rb") as audio_file:
@@ -367,10 +367,10 @@ Legacy endpoint, maintains backward compatibility.
 
 ```bash
 # Find process using the port
-lsof -ti:8000
+lsof -ti:8200
 
 # Kill the process
-lsof -ti:8000 | xargs kill -9
+lsof -ti:8200 | xargs kill -9
 ```
 
 ### Model Loading Failed
