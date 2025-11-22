@@ -164,7 +164,7 @@ The `docker-compose.yml` configuration:
 | `--remote_code` | str | `./model.py` | Remote code path |
 | `--vad_model` | str | `fsmn-vad` | VAD model name |
 | `--vad_kwargs` | int | `30000` | VAD max single segment time (milliseconds) |
-| `--device` | str | `cpu` | Device to run on (`cpu` or `cuda`) |
+| `--device` | str | `cpu` | Device to run on (`cpu` or `cuda` or `mps`) |
 | `--ncpu` | int | `4` | Number of CPU cores |
 | `--language` | str | `auto` | Language code (`auto`, `zh`, `en`, `yue`, `ja`, `ko`) |
 | `--use_itn` | bool | `True` | Use inverse text normalization |
