@@ -5,7 +5,7 @@ services:
     build: .
     container_name: sensevoice-stt
     ports:
-      - "8000:8000"
+      - "8200:8200"
     volumes:
       - ./models:/root/.cache/modelscope/hub
     restart: unless-stopped
