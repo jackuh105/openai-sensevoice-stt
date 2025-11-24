@@ -44,6 +44,12 @@ torchaudio = { index = "pytorch" }
 uv run funasr_http_server.py --port 8000 --device cpu
 ```
 
+### Run in background
+
+```bash
+nohup uv run funasr_http_server.py --port 8000 --device mps > server.log 2>&1 &
+```
+
 ### Custom Configuration
 
 ```bash
