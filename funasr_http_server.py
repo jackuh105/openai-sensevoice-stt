@@ -9,6 +9,7 @@ from typing import Optional
 import aiofiles
 import ffmpeg
 import numpy as np
+import soundfile as sf
 import torch
 import torchaudio
 import uvicorn
@@ -25,7 +26,7 @@ logger.setLevel(logging.INFO)
 
 def process_audio_bytes_torchaudio(audio_bytes: bytes) -> np.ndarray:
     """
-    使用 torchaudio 在記憶體中處理音頻，無需臨時文件
+    使用 soundfile 在記憶體中處理音頻，無需臨時文件
     
     Args:
         audio_bytes: 原始音頻文件的 bytes
@@ -33,23 +34,38 @@ def process_audio_bytes_torchaudio(audio_bytes: bytes) -> np.ndarray:
     Returns:
         numpy array of audio samples (16kHz, mono, float32)
     """
-    # 從 bytes 加載音頻
+    # 從 bytes 加載音頻，使用 soundfile
     audio_buffer = io.BytesIO(audio_bytes)
-    waveform, sample_rate = torchaudio.load(audio_buffer)
+    
+    # 使用 soundfile 讀取音頻
+    waveform, sample_rate = sf.read(audio_buffer, dtype='float32')
+    
+    # soundfile 返回的是 (samples, channels) 格式，需要轉置為 (channels, samples)
+    if waveform.ndim == 1:
+        # 單聲道
+        waveform = waveform[np.newaxis, :]  # 添加 channel 維度
+    else:
+        # 多聲道，轉置
+        waveform = waveform.T
+    
+    # 轉換為 torch tensor 以便處理
+    waveform_tensor = torch.from_numpy(waveform)
     
     # 轉換為單聲道（如果是多聲道）
-    if waveform.shape[0] > 1:
-        waveform = torch.mean(waveform, dim=0, keepdim=True)
+    if waveform_tensor.shape[0] > 1:
+        waveform_tensor = torch.mean(waveform_tensor, dim=0, keepdim=True)
     
     # 重採樣到 16kHz（如果需要）
     if sample_rate != 16000:
         resampler = torchaudio.transforms.Resample(sample_rate, 16000)
-        waveform = resampler(waveform)
+        waveform_tensor = resampler(waveform_tensor)
     
     # 轉換為 numpy array
-    audio_array = waveform.squeeze().numpy()
+    audio_array = waveform_tensor.squeeze().numpy()
     
     return audio_array
+
+
 
 
 def process_audio_bytes_ffmpeg(audio_path: str) -> bytes:
