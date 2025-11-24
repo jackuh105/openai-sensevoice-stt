@@ -11,7 +11,7 @@ Modified based on [FunASR HTTP Server](https://github.com/modelscope/FunASR/tree
 - ✅ **Auto Language Detection**: Supports `language=auto`
 - ✅ **VAD Segmentation**: Automatic voice activity detection and segment merging
 - ✅ **Inverse Text Normalization**: Supports number, date formatting in output
-- ✅ **High Performance**: Uses torchaudio for in-memory audio processing, eliminating disk I/O overhead, keep `ffmpeg` as fallback
+- ✅ **High Performance**: Uses `soundfile` + `torchaudio` for in-memory audio processing, eliminating disk I/O overhead 
 
 ## Installation
 
@@ -368,6 +368,18 @@ Legacy endpoint, maintains backward compatibility.
 | Japanese | `ja` | ✅ |
 | Korean | `ko` | ✅ |
 
+## Performance Benchmarks
+
+You can benchmark the server using the included `test_speed.py`:
+
+```bash
+# Start the server
+uv run funasr_http_server.py --port 8000 --device cuda  # or --device mps for Mac
+
+# In another terminal, run the speed test
+python test_speed.py audio/your_audio.wav --runs 10
+```
+
 ## Troubleshooting
 
 ### Port Already in Use
@@ -390,9 +402,20 @@ models/iic/SenseVoiceSmall/
 └── ...
 ```
 
+### Audio Processing Falls Back to ffmpeg
+
+If you see warnings like `"torchaudio 處理失敗...回退到 ffmpeg"` in the logs:
+
+1. **Normal behavior**: The server tries `soundfile` first, then falls back to `ffmpeg` for unsupported formats
+2. **Performance impact**: Fallback is slightly slower but still works correctly
+3. **Solution**: Ensure `soundfile` is installed via `uv sync`
+
+Most common audio formats (WAV, MP3, FLAC, OGG) are supported by `soundfile` and won't trigger fallback.
+
 ### ffmpeg Error
 
-Ensure ffmpeg is installed:
+The server keeps `ffmpeg` as a fallback for rare audio formats. Ensure ffmpeg is installed:
+
 ```bash
 # macOS
 brew install ffmpeg
