@@ -228,6 +228,7 @@ param_dict = {
     "use_itn": args.use_itn,
     "merge_vad": args.merge_vad,
     "merge_length_s": args.merge_length_s,
+    "output_dir": None,
 }
 
 
@@ -381,6 +382,7 @@ async def openai_transcriptions(
         "use_itn": args.use_itn,
         "merge_vad": args.merge_vad,
         "merge_length_s": args.merge_length_s,
+        "output_dir": None,
     }
     
     # 優先嘗試使用 torchaudio（記憶體處理）
