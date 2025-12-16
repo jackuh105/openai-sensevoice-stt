@@ -312,54 +312,32 @@ async def api_recognition(audio: UploadFile = File(..., description="audio file"
     # 讀取上傳的文件到記憶體
     content = await audio.read()
 
-    # 檢查是否為 Fun-ASR-Nano 模型
-    if "Fun-ASR-Nano" in args.model_dir:
-        try:
-            # Fun-ASR-Nano 需要文件路徑輸入
-            suffix = audio.filename.split(".")[-1] if "." in audio.filename else "wav"
-            audio_path = f"{args.temp_dir}/{str(uuid.uuid1())}.{suffix}"
-            async with aiofiles.open(audio_path, "wb") as out_file:
-                await out_file.write(content)
-            
-            # 使用文件路徑調用 generate，注意要包在 list 中
-            rec_results = model.generate(input=[audio_path], cache={}, batch_size=1, is_final=True, **param_dict)
-            
-            # 清理臨時文件
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
-        except Exception as e:
-            logger.error(f"Fun-ASR-Nano 處理錯誤：{e}")
-            return {"msg": f"處理錯誤: {e}", "code": 1}
+    try:
+        suffix = audio.filename.split(".")[-1] if "." in audio.filename else "wav"
+        audio_path = f"{args.temp_dir}/{str(uuid.uuid1())}.{suffix}"
+        async with aiofiles.open(audio_path, "wb") as out_file:
+            await out_file.write(content)
 
-    else:
-        # 其他模型（如 SenseVoice）使用原有的記憶體處理邏輯
-        # 優先嘗試使用 torchaudio（記憶體處理）
-        try:
-            logger.info("使用 torchaudio 處理音頻...")
-            audio_array = process_audio_bytes_torchaudio(content)
-            rec_results = model.generate(input=audio_array, is_final=True, **param_dict)
-            
-        except Exception as torchaudio_error:
-            # 如果 torchaudio 失敗，回退到 ffmpeg
-            logger.warning(f"torchaudio 處理失敗：{torchaudio_error}，回退到 ffmpeg")
-            
+        if "Fun-ASR-Nano" in args.model_dir:
+            rec_results = model.generate(input=[audio_path], cache={}, batch_size=1, is_final=True, **param_dict)
+        else:
             try:
-                # 保存臨時文件供 ffmpeg 使用
-                suffix = audio.filename.split(".")[-1]
-                audio_path = f"{args.temp_dir}/{str(uuid.uuid1())}.{suffix}"
-                async with aiofiles.open(audio_path, "wb") as out_file:
-                    await out_file.write(content)
-                
+                logger.info("使用 torchaudio 處理音頻...")
+                audio_array = process_audio_bytes_torchaudio(content)
+                rec_results = model.generate(input=audio_array, is_final=True, **param_dict)
+            except Exception as torchaudio_error:
+                # 如果 torchaudio 失敗，回退到 ffmpeg
+                logger.warning(f"torchaudio 處理失敗：{torchaudio_error}，回退到 ffmpeg")
                 audio_bytes = process_audio_bytes_ffmpeg(audio_path)
                 rec_results = model.generate(input=audio_bytes, is_final=True, **param_dict)
-                
-                # 清理臨時文件
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
-                    
-            except Exception as e:
-                logger.error(f"读取音频文件发生错误，错误信息：{e}")
-                return {"msg": "读取音频文件发生错误", "code": 1}
+
+        # 清理臨時文件
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+
+    except Exception as e:
+        logger.error(f"读取音频文件发生错误，错误信息：{e}")
+        return {"msg": f"读取音频文件发生错误: {e}", "code": 1}
     
     # 檢查結果
     if not rec_results or len(rec_results) == 0:
@@ -406,55 +384,31 @@ async def openai_transcriptions(
         "output_dir": None,
     }
     
-    # 檢查是否為 Fun-ASR-Nano 模型
-    if "Fun-ASR-Nano" in args.model_dir:
-        try:
-            # Fun-ASR-Nano 需要文件路徑輸入
-            suffix = file.filename.split(".")[-1] if "." in file.filename else "wav"
-            audio_path = f"{args.temp_dir}/{str(uuid.uuid1())}.{suffix}"
-            async with aiofiles.open(audio_path, "wb") as out_file:
-                await out_file.write(content)
-            
-            # 使用文件路徑調用 generate，注意要包在 list 中
+    try:
+        suffix = file.filename.split(".")[-1] if "." in file.filename else "wav"
+        audio_path = f"{args.temp_dir}/{str(uuid.uuid1())}.{suffix}"
+        async with aiofiles.open(audio_path, "wb") as out_file:
+            await out_file.write(content)
+        if "Fun-ASR-Nano" in args.model_dir:
             rec_results = model.generate(input=[audio_path], cache={}, batch_size=1, is_final=True, **inference_params)
-            
-            # 清理臨時文件
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
-        except Exception as e:
-            logger.error(f"Fun-ASR-Nano 處理錯誤：{e}")
-            return {"error": {"message": f"Fun-ASR-Nano processing failed: {str(e)}", "type": "server_error"}}
-    
-    else:
-        # 其他模型（如 SenseVoice）使用原有的記憶體處理邏輯
-        # 優先嘗試使用 torchaudio（記憶體處理）
-        try:
-            logger.info("使用 torchaudio 處理音頻...")
-            audio_array = process_audio_bytes_torchaudio(content)
-            rec_results = model.generate(input=audio_array, is_final=True, **inference_params)
-            
-        except Exception as torchaudio_error:
-            # 如果 torchaudio 失敗，回退到 ffmpeg
-            logger.warning(f"torchaudio 處理失敗：{torchaudio_error}，回退到 ffmpeg")
-            
+        else:
             try:
-                # 保存臨時文件供 ffmpeg 使用
-                suffix = file.filename.split(".")[-1] if "." in file.filename else "wav"
-                audio_path = f"{args.temp_dir}/{str(uuid.uuid1())}.{suffix}"
-                async with aiofiles.open(audio_path, "wb") as out_file:
-                    await out_file.write(content)
-                
+                logger.info("使用 torchaudio 處理音頻...")
+                audio_array = process_audio_bytes_torchaudio(content)
+                rec_results = model.generate(input=audio_array, is_final=True, **inference_params)
+            except Exception as torchaudio_error:
+                # 如果 torchaudio 失敗，回退到 ffmpeg
+                logger.warning(f"torchaudio 處理失敗：{torchaudio_error}，回退到 ffmpeg")
                 audio_bytes = process_audio_bytes_ffmpeg(audio_path)
                 rec_results = model.generate(input=audio_bytes, is_final=True, **inference_params)
-                
-                # 清理臨時文件
-                if os.path.exists(audio_path):
-                    os.remove(audio_path)
-                    
-            except Exception as e:
-                logger.error(f"音頻文件處理錯誤：{e}")
-                return {"error": {"message": "Audio file processing failed", "type": "invalid_request_error"}}
-    
+        
+        # 清理臨時文件
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+    except Exception as e:
+        logger.error(f"音頻文件處理錯誤：{e}")
+        return {"error": {"message": "Audio file processing failed", "type": "invalid_request_error"}}
+
     # 執行辨識
     try:
         if not rec_results or len(rec_results) == 0:
