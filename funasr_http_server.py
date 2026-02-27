@@ -4,6 +4,7 @@ import logging
 import os
 import uuid
 from pathlib import Path
+from opencc import OpenCC
 from typing import Optional
 
 import aiofiles
@@ -187,6 +188,8 @@ model = AutoModel(
     disable_log=True,
 )
 logger.info("loaded models!")
+# s2t converter
+s2t_cc = OpenCC("s2t")
 
 client = None
 LLM_SYSTEM_PROMPT = None
@@ -349,10 +352,11 @@ async def api_recognition(audio: UploadFile = File(..., description="audio file"
     
     # 使用 rich_transcription_postprocess 處理結果
     text = rich_transcription_postprocess(rec_result["text"])
+    text = s2t_cc.convert(text)
     
     # 簡化的回應格式
     ret = {"text": text, "code": 0}
-    logger.info(f"識別結果：{ret}")
+    # logger.info(f"識別結果：{ret}")
     return ret
 
 
@@ -426,6 +430,7 @@ async def openai_transcriptions(
         
         # 後處理文本
         text = rich_transcription_postprocess(rec_result["text"])
+        text = s2t_cc.convert(text)
         if args.llm_correct:
             text = llm_correction(text)
         
@@ -436,7 +441,7 @@ async def openai_transcriptions(
             language=language
         )
         
-        logger.info(f"OpenAI API 辨識結果：{text[:100]}...")
+        # logger.info(f"OpenAI API 辨識結果：{text[:100]}...")
         
         # 根據回應格式設定 Content-Type
         if response_format == "text":
