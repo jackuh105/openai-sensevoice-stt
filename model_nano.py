@@ -595,6 +595,20 @@ class FunASRNano(nn.Module):
             inputs_embeds = inputs_embeds.to(dtype_map[llm_dtype])
             llm_kwargs = kwargs.get("llm_kwargs", {})
             if not kwargs.get("teachforing", False):
+                # batch=1 無 padding，顯式傳全 1 mask 以消除 transformers 警告
+                # 並避免未來 batch 推理時 attention 打到 padding 位置
+                generate_attention_mask = torch.ones(
+                    inputs_embeds.shape[:2], dtype=torch.long, device=inputs_embeds.device
+                )
+                if "attention_mask" not in llm_kwargs:
+                    llm_kwargs["attention_mask"] = generate_attention_mask
+                # from_config 構建不會載入 generation_config.json，pad_token_id 為 None，
+                # 顯式指定以免每次 generate 都回退並告警
+                if "pad_token_id" not in llm_kwargs:
+                    pad_token_id = self.llm.config.eos_token_id
+                    if isinstance(pad_token_id, list):
+                        pad_token_id = pad_token_id[-1]
+                    llm_kwargs["pad_token_id"] = pad_token_id
                 generated_ids = self.llm.generate(
                     inputs_embeds=inputs_embeds,
                     max_new_tokens=kwargs.get("max_length", 512),
