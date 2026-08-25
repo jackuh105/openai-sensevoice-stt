@@ -15,6 +15,7 @@ import torch
 import torchaudio
 import uvicorn
 from fastapi import FastAPI, File, UploadFile, Form
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from modelscope.utils.logger import get_logger
 
@@ -225,6 +226,13 @@ Your task is to correct the provided text while strictly adhering to the followi
     logger.info("2 Pass mode enable!")
 
 app = FastAPI(title="FunASR")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 param_dict = {
     "language": args.language,
